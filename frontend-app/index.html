@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Production Center</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f4f4f9; }
+        nav { display: flex; background: #2c3e50; padding: 10px; }
+        nav button { background: none; color: white; border: none; cursor: pointer; padding: 10px 20px; font-weight: bold; border-radius: 4px; }
+        nav button:hover { background: #34495e; }
+        .view { padding: 20px; display: none; }
+        .active { display: block; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th { background: #e9ecef; border: 1px solid #ddd; padding: 10px; text-align: left; }
+        td { border: 1px solid #ddd; padding: 8px; }
+        
+        .gantt-container { border: 1px solid #ccc; height: 500px; overflow-y: auto; background: #fff; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .gantt-row { display: flex; border-bottom: 1px solid #eee; height: 50px; align-items: center; }
+        .res-label { width: 180px; flex-shrink: 0; font-weight: bold; padding-left: 15px; font-size: 14px; color: #333; }
+        
+        .timeline-area { position: relative; flex-grow: 1; height: 100%; border-left: 2px solid #333; background: #fafafa; }
+        .gantt-block { position: absolute; height: 36px; top: 7px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 1px 1px 3px rgba(0,0,0,0.2); overflow: hidden; white-space: nowrap; }
+        
+        .color-A001 { background: #198754; } 
+        .color-A002 { background: #0dcaf0; color: #000; }
+        .color-A003 { background: #fd7e14; }
+        .color-A004 { background: #6f42c1; }
+    </style>
+</head>
+<body>
+    <nav>
+        <button onclick="show('data')">Data Grid</button>
+        <button onclick="show('gantt')">Gantt Chart</button>
+    </nav>
+    
+    <div id="data" class="view active">
+        <div style="margin-bottom: 15px;">
+            <input type="file" id="csvFile"> 
+            <button id="uploadBtn" onclick="upload()" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Upload CSV</button>
+        </div>
+        <table id="grid">
+            <thead><tr><th>ID</th><th>Order</th><th>Part</th><th>Op#</th><th>OpName</th><th>Res</th><th>Setup</th><th>ItemTime</th><th>Qty</th><th>Due</th><th>Del</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    
+    <div id="gantt" class="view">
+        <button onclick="genGantt()" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 10px;">Regenerate Gantt</button>
+        <div id="gantt-chart" class="gantt-container"></div>
+    </div>
+    
+    <script>
+        function show(v) { 
+            document.querySelectorAll('.view').forEach(d => d.style.display = (d.id==v?'block':'none')); 
+            if(v === 'data') loadData(); 
+        }
+        
+        async function loadData() {
+            let res = await fetch('/api/data', { cache: 'no-store' }); 
+            let data = await res.json();
+            document.querySelector('#grid tbody').innerHTML = data.map(r => 
+                `<tr>${r.map(c=>`<td>${c}</td>`).join('')}<td><button onclick="del(${r[0]})" style="background:#dc3545; color:white; border:none; cursor:pointer;">X</button></td></tr>`
+            ).join('');
+        }
+        
+        async function upload() {
+            const fileInput = document.getElementById('csvFile');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (!fileInput.files.length) return alert("Please select a CSV file.");
+            
+            uploadBtn.innerText = "Uploading & Saving...";
+            uploadBtn.style.opacity = "0.7";
+            
+            let formData = new FormData(); 
+            formData.append('file', fileInput.files[0]);
+            
+            await fetch('/api/upload', {method: 'POST', body: formData}); 
+            
+            fileInput.value = ""; 
+            await loadData(); 
+            
+            uploadBtn.innerText = "Upload CSV";
+            uploadBtn.style.opacity = "1";
+        }
+        
+        async function del(id) { 
+            await fetch('/api/delete?id='+id, {method: 'POST'}); 
+            await loadData(); 
+        }
+        
+        async function genGantt() {
+            let res = await fetch('/api/schedule', { cache: 'no-store' }); 
+            let data = await res.json();
+            
+            if (!data.schedule || data.schedule.length === 0) {
+                document.getElementById('gantt-chart').innerHTML = "<div style='padding:20px;'>No schedule data available. Upload data first.</div>";
+                return;
+            }
+            
+            const resources = [...new Set(data.schedule.map(s => s.resource))];
+            
+            document.getElementById('gantt-chart').innerHTML = resources.map(res => 
+                `<div class="gantt-row">
+                    <div class="res-label">${res}</div>
+                    <div class="timeline-area">
+                        ${data.schedule.filter(s => s.resource == res).map(s => 
+                        `<div class="gantt-block color-${s.order}" style="left:${(s.start_min/data.max)*100}%; width:${(s.dur/data.max)*100}%" title="${s.order} | Start: ${s.start_min}m | Dur: ${s.dur}m">${s.order}</div>`
+                        ).join('')}
+                    </div>
+                </div>`
+            ).join('');
+        }
+        
+        loadData();
+    </script>
+</body>
+</html>

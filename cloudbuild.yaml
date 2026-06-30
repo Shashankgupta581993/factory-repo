@@ -1,0 +1,30 @@
+steps:
+# Step A: Update the VM Backend via IAP
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    echo "Pushing backend to Cloud Storage..."
+    gcloud storage cp backend/main.py gs://zero-cost-bucket-shashank-581993/main.py
+    
+    echo "Restarting Air-Gapped VM..."
+    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && fuser -k 8000/tcp || true && nohup python3 main.py > app.log 2>&1 &"
+
+# Step B: Deploy the Frontend to Cloud Run
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    echo "Building and Deploying Serverless Frontend..."
+    gcloud run deploy production-dashboard \
+      --source frontend/ \
+      --region us-central1 \
+      --network default \
+      --subnet default \
+      --vpc-egress private-ranges-only \
+      --allow-unauthenticated \
+      --min-instances 0 \
+      --max-instances 1 \
+      --memory 256Mi
