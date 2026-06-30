@@ -91,6 +91,18 @@ class AppServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "success"}).encode())
 
+        # --- NEW CODE FOR CI/CD TEST ---
+        elif '/api/delete_all' in self.path:
+            conn = sqlite3.connect('factory.db')
+            conn.execute("DELETE FROM routing")
+            conn.commit()
+            conn.close()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success"}).encode())
+
 if __name__ == "__main__":
     init_db()
     HTTPServer(('0.0.0.0', 8000), AppServer).serve_forever()

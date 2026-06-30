@@ -37,6 +37,7 @@
         <div style="margin-bottom: 15px;">
             <input type="file" id="csvFile"> 
             <button id="uploadBtn" onclick="upload()" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Upload CSV</button>
+            <button id="deleteAllBtn" onclick="deleteAll()" style="padding: 8px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">Delete All Records</button>
         </div>
         <table id="grid">
             <thead><tr><th>ID</th><th>Order</th><th>Part</th><th>Op#</th><th>OpName</th><th>Res</th><th>Setup</th><th>ItemTime</th><th>Qty</th><th>Due</th><th>Del</th></tr></thead>
@@ -84,9 +85,24 @@
             uploadBtn.style.opacity = "1";
         }
         
-        async function del(id) { 
+            async function del(id) { 
             await fetch('/api/delete?id='+id, {method: 'POST'}); 
             await loadData(); 
+        }
+        
+        // --- NEW CODE FOR CI/CD TEST ---
+        async function deleteAll() {
+            if (!confirm("Are you sure you want to completely clear the database? This cannot be undone.")) return;
+            
+            const btn = document.getElementById('deleteAllBtn');
+            btn.innerText = "Clearing...";
+            btn.style.opacity = "0.7";
+            
+            await fetch('/api/delete_all', { method: 'POST' });
+            await loadData();
+            
+            btn.innerText = "Delete All Records";
+            btn.style.opacity = "1";
         }
         
         async function genGantt() {
