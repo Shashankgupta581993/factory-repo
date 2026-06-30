@@ -28,3 +28,7 @@ steps:
       --min-instances 0 \
       --max-instances 1 \
       --memory 256Mi
+
+# --- THE FIX FOR THE LOGS BUCKET ERROR ---
+options:
+  logging: CLOUD_LOGGING_ONLY
