@@ -1,0 +1,8 @@
+# Ignore SQLite databases
+*.db
+*.sqlite3
+*Orders.csv
+
+# Ignore Python cache and logs
+__pycache__/
+app.log
