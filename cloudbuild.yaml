@@ -6,12 +6,11 @@ steps:
   - '-c'
   - |
     echo "Pushing backend to Cloud Storage..."
-    # Updated to backend-app
     gcloud storage cp backend-app/main.py gs://zero-cost-bucket-shashank-581993/main.py
     
     echo "Restarting Air-Gapped VM..."
-    # Added --quiet to bypass the interactive SSH keygen prompt
-    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && fuser -k 8000/tcp || true && nohup python3 main.py > app.log 2>&1 &"
+    # ADDED: < /dev/null to completely detach the background process from SSH
+    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && fuser -k 8000/tcp || true && nohup python3 main.py > app.log 2>&1 < /dev/null &"
 
 # Step B: Deploy the Frontend to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -31,6 +30,5 @@ steps:
       --max-instances 1 \
       --memory 256Mi
 
-# Force logs to Cloud Logging to avoid the default bucket permission error
 options:
   logging: CLOUD_LOGGING_ONLY
