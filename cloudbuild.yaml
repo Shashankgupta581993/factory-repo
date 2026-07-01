@@ -10,7 +10,7 @@ steps:
     
     echo "Restarting Air-Gapped VM..."
     # The --quiet, setsid, and < /dev/null are strictly required so the SSH session can close instantly!
-    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && pkill -f 'python3 main.py' || true && setsid python3 main.py > app.log 2>&1 < /dev/null &"
+    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && sudo fuser -k -9 8000/tcp || true && setsid python3 main.py > app.log 2>&1 < /dev/null &"
 
 # Step B: Deploy the Frontend to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
