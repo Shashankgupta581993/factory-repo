@@ -76,13 +76,19 @@
             let formData = new FormData(); 
             formData.append('file', fileInput.files[0]);
             
-            await fetch('/api/upload', {method: 'POST', body: formData}); 
-            
-            fileInput.value = ""; 
-            await loadData(); 
-            
-            uploadBtn.innerText = "Upload CSV";
-            uploadBtn.style.opacity = "1";
+            try {
+                const res = await fetch('/api/upload', {method: 'POST', body: formData}); 
+                if (!res.ok) {
+                    throw new Error(`Upload failed with status: ${res.status}`);
+                }
+                fileInput.value = ""; 
+                await loadData(); 
+            } catch (err) {
+                alert("Error during upload: " + err.message);
+            } finally {
+                uploadBtn.innerText = "Upload CSV";
+                uploadBtn.style.opacity = "1";
+            }
         }
         
             async function del(id) { 

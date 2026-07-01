@@ -65,19 +65,44 @@ class AppServer(BaseHTTPRequestHandler):
                 return
                 
             body = self.rfile.read(content_length)
-            csv_data = body.split(b'\r\n\r\n')[1].split(b'\r\n----')[0].decode('utf-8')
-            reader = csv.reader(io.StringIO(csv_data))
-            next(reader, None) # Skip header
+            content_type = self.headers.get('Content-Type', '')
             
-            conn = sqlite3.connect('factory.db')
-            conn.executemany("INSERT INTO routing (order_no, part_no, part_name, op_no, op_name, resource, setup_time, time_per_item, qty, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)", reader)
-            conn.commit()
-            conn.close()
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success"}).encode())
+            try:
+                from email.parser import BytesParser
+                msg_bytes = b"Content-Type: " + content_type.encode('utf-8') + b"\r\n\r\n" + body
+                msg = BytesParser().parsebytes(msg_bytes)
+                csv_data = None
+                
+                if msg.is_multipart():
+                    for part in msg.get_payload():
+                        if part.get_param('name', header='content-disposition') == 'file' or part.get_filename():
+                            csv_data = part.get_payload(decode=True).decode('utf-8')
+                            break
+                
+                if csv_data is None:
+                    self.send_error(400, "No file uploaded")
+                    return
+                
+                reader = csv.reader(io.StringIO(csv_data))
+                next(reader, None) # Skip header
+                
+                valid_rows = [row for row in reader if len(row) == 10]
+                
+                if not valid_rows:
+                    self.send_error(400, "No valid data found in CSV")
+                    return
+                
+                conn = sqlite3.connect('factory.db')
+                conn.executemany("INSERT INTO routing (order_no, part_no, part_name, op_no, op_name, resource, setup_time, time_per_item, qty, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)", valid_rows)
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success"}).encode())
+            except Exception as e:
+                self.send_error(500, f"Error processing file: {str(e)}")
             
         elif '/api/delete' in self.path:
             id = parse_qs(urlparse(self.path).query)['id'][0]
