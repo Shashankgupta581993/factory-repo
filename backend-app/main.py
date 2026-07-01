@@ -129,54 +129,61 @@ class AppServer(BaseHTTPRequestHandler):
                 self.send_error(404, "Not Found")
 
     def do_POST(self):
-        if '/api/upload' in self.path:
-            content_length = int(self.headers.get('Content-Length', 0))
-            if content_length == 0:
-                self.send_error(400, "Empty payload")
-                return
+        try:
+            if '/api/upload' in self.path:
+                content_length = int(self.headers.get('Content-Length', 0))
+                if content_length == 0:
+                    self.send_error(400, "Empty payload")
+                    return
+                    
+                body = self.rfile.read(content_length)
+                # Safely extract CSV from multipart form data
+                csv_data = body.split(b'\r\n\r\n', 1)[1].rsplit(b'\r\n--', 1)[0].decode('utf-8', errors='replace')
+                reader = csv.reader(io.StringIO(csv_data))
+                next(reader, None) # Skip header
                 
-            body = self.rfile.read(content_length)
-            # Safely extract CSV from multipart form data
-            csv_data = body.split(b'\r\n\r\n', 1)[1].rsplit(b'\r\n--', 1)[0].decode('utf-8')
-            reader = csv.reader(io.StringIO(csv_data))
-            next(reader, None) # Skip header
-            
-            # Filter out empty rows or rows with incorrect column counts
-            valid_rows = [row for row in reader if len(row) == 10]
-            
-            conn = sqlite3.connect('factory.db')
-            conn.executemany("INSERT INTO routing (order_no, part_no, part_name, op_no, op_name, resource, setup_time, time_per_item, qty, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)", valid_rows)
-            conn.commit()
-            conn.close()
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success"}).encode())
-            
-        elif '/api/delete' in self.path:
-            id = parse_qs(urlparse(self.path).query)['id'][0]
-            conn = sqlite3.connect('factory.db')
-            conn.execute("DELETE FROM routing WHERE id = ?", (id,))
-            conn.commit()
-            conn.close()
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success"}).encode())
-
-        # --- NEW CODE FOR CI/CD TEST ---
-        elif '/api/delete_all' in self.path:
-            conn = sqlite3.connect('factory.db')
-            conn.execute("DELETE FROM routing")
-            conn.commit()
-            conn.close()
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success"}).encode())
+                # Filter out empty rows or rows with incorrect column counts
+                valid_rows = [row for row in reader if len(row) == 10]
+                
+                conn = sqlite3.connect('factory.db')
+                conn.executemany("INSERT INTO routing (order_no, part_no, part_name, op_no, op_name, resource, setup_time, time_per_item, qty, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)", valid_rows)
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success"}).encode())
+                
+            elif '/api/delete' in self.path:
+                id = parse_qs(urlparse(self.path).query)['id'][0]
+                conn = sqlite3.connect('factory.db')
+                conn.execute("DELETE FROM routing WHERE id = ?", (id,))
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success"}).encode())
+    
+            # --- NEW CODE FOR CI/CD TEST ---
+            elif '/api/delete_all' in self.path:
+                conn = sqlite3.connect('factory.db')
+                conn.execute("DELETE FROM routing")
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success"}).encode())
+                
+        except Exception as e:
+            import traceback
+            err = traceback.format_exc()
+            print(f"ERROR in do_POST: {err}")
+            self.send_error(500, f"Server Error: {str(e)}")
 
 if __name__ == "__main__":
     init_db()
