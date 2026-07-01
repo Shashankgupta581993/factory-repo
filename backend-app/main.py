@@ -29,6 +29,55 @@ class AppServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(rows).encode())
             
+        elif '/api/schedule' in self.path:
+            conn = sqlite3.connect('factory.db')
+            # Sort by order and operation number to schedule sequentially
+            rows = conn.execute("SELECT order_no, op_no, resource, setup_time, time_per_item, qty FROM routing ORDER BY order_no, op_no").fetchall()
+            conn.close()
+            
+            schedule = []
+            resource_avail = {}
+            order_avail = {}
+            max_time = 0
+            
+            for row in rows:
+                order_no, op_no, resource, setup_time, time_per_item, qty = row
+                
+                setup_min = parse_time_to_mins(setup_time)
+                item_min = parse_time_to_mins(time_per_item)
+                # Ensure qty is treated as integer safely
+                try:
+                    qty = int(qty)
+                except ValueError:
+                    qty = 0
+                    
+                dur = setup_min + (item_min * qty)
+                
+                # Start time is max of when the resource is next free, and when the order finishes its previous op
+                start_min = max(resource_avail.get(resource, 0), order_avail.get(order_no, 0))
+                end_min = start_min + dur
+                
+                schedule.append({
+                    "resource": resource,
+                    "order": order_no,
+                    "start_min": start_min,
+                    "dur": dur
+                })
+                
+                resource_avail[resource] = end_min
+                order_avail[order_no] = end_min
+                if end_min > max_time:
+                    max_time = end_min
+                    
+            if max_time == 0:
+                max_time = 1 # Avoid division by zero
+                
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            self.wfile.write(json.dumps({"schedule": schedule, "max": max_time}).encode())
+            
         elif '/api/backup' in self.path:
             # 1. Basic Security: Require a secret token to trigger the backup
             query = parse_qs(urlparse(self.path).query)
@@ -65,44 +114,23 @@ class AppServer(BaseHTTPRequestHandler):
                 return
                 
             body = self.rfile.read(content_length)
-            content_type = self.headers.get('Content-Type', '')
+            # Safely extract CSV from multipart form data
+            csv_data = body.split(b'\r\n\r\n', 1)[1].rsplit(b'\r\n--', 1)[0].decode('utf-8')
+            reader = csv.reader(io.StringIO(csv_data))
+            next(reader, None) # Skip header
             
-            try:
-                from email.parser import BytesParser
-                msg_bytes = b"Content-Type: " + content_type.encode('utf-8') + b"\r\n\r\n" + body
-                msg = BytesParser().parsebytes(msg_bytes)
-                csv_data = None
-                
-                if msg.is_multipart():
-                    for part in msg.get_payload():
-                        if part.get_param('name', header='content-disposition') == 'file' or part.get_filename():
-                            csv_data = part.get_payload(decode=True).decode('utf-8')
-                            break
-                
-                if csv_data is None:
-                    self.send_error(400, "No file uploaded")
-                    return
-                
-                reader = csv.reader(io.StringIO(csv_data))
-                next(reader, None) # Skip header
-                
-                valid_rows = [row for row in reader if len(row) == 10]
-                
-                if not valid_rows:
-                    self.send_error(400, "No valid data found in CSV")
-                    return
-                
-                conn = sqlite3.connect('factory.db')
-                conn.executemany("INSERT INTO routing (order_no, part_no, part_name, op_no, op_name, resource, setup_time, time_per_item, qty, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)", valid_rows)
-                conn.commit()
-                conn.close()
-                
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "success"}).encode())
-            except Exception as e:
-                self.send_error(500, f"Error processing file: {str(e)}")
+            # Filter out empty rows or rows with incorrect column counts
+            valid_rows = [row for row in reader if len(row) == 10]
+            
+            conn = sqlite3.connect('factory.db')
+            conn.executemany("INSERT INTO routing (order_no, part_no, part_name, op_no, op_name, resource, setup_time, time_per_item, qty, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)", valid_rows)
+            conn.commit()
+            conn.close()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success"}).encode())
             
         elif '/api/delete' in self.path:
             id = parse_qs(urlparse(self.path).query)['id'][0]
