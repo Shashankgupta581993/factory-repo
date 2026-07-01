@@ -17,6 +17,16 @@ def parse_time_to_mins(time_str):
 
 # --- PURE API SERVER ---
 class AppServer(BaseHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Content-Length')
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
     def do_GET(self):
         if '/api/data' in self.path:
             conn = sqlite3.connect('factory.db')
@@ -106,6 +116,18 @@ class AppServer(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b"Backup Failed to upload to Cloud Storage")
 
+        else:
+            import os
+            frontend_path = os.path.join(os.path.dirname(__file__), '..', 'frontend-app', 'index.html')
+            if os.path.exists(frontend_path):
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                with open(frontend_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "Not Found")
+
     def do_POST(self):
         if '/api/upload' in self.path:
             content_length = int(self.headers.get('Content-Length', 0))
@@ -158,4 +180,5 @@ class AppServer(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     init_db()
+    print("Backend server is running on http://localhost:8000")
     HTTPServer(('0.0.0.0', 8000), AppServer).serve_forever()
