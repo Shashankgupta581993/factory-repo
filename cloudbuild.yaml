@@ -10,7 +10,7 @@ steps:
     
     echo "Restarting Air-Gapped VM..."
     # FIX: Using setsid to completely isolate the process from the SSH terminal session
-    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && fuser -k 8000/tcp || true && setsid python3 main.py > app.log 2>&1 < /dev/null &"
+    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && pkill -f 'python3 main.py' || true && nohup python3 main.py > app.log 2>&1 &"
 
 # Step B: Deploy the Frontend to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -19,16 +19,7 @@ steps:
   - '-c'
   - |
     echo "Building and Deploying Serverless Frontend..."
-    gcloud run deploy production-dashboard \
-      --source frontend-app/ \
-      --region us-central1 \
-      --network default \
-      --subnet default \
-      --vpc-egress private-ranges-only \
-      --allow-unauthenticated \
-      --min-instances 0 \
-      --max-instances 1 \
-      --memory 256Mi
+    gcloud run deploy production-dashboard --source frontend-app/ --region us-central1 --network default --subnet default --vpc-egress private-ranges-only --allow-unauthenticated --min-instances 0 --max-instances 1 --memory 256Mi
 
 options:
   logging: CLOUD_LOGGING_ONLY
