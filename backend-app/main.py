@@ -155,10 +155,10 @@ class AppServer(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "success"}).encode())
                 
-            elif '/api/delete' in self.path:
-                id = parse_qs(urlparse(self.path).query)['id'][0]
+            # --- NEW CODE FOR CI/CD TEST ---
+            elif '/api/delete_all' in self.path:
                 conn = sqlite3.connect('factory.db')
-                conn.execute("DELETE FROM routing WHERE id = ?", (id,))
+                conn.execute("DELETE FROM routing")
                 conn.commit()
                 conn.close()
                 
@@ -166,11 +166,11 @@ class AppServer(BaseHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "success"}).encode())
-    
-            # --- NEW CODE FOR CI/CD TEST ---
-            elif '/api/delete_all' in self.path:
+                
+            elif '/api/delete' in self.path:
+                id = parse_qs(urlparse(self.path).query)['id'][0]
                 conn = sqlite3.connect('factory.db')
-                conn.execute("DELETE FROM routing")
+                conn.execute("DELETE FROM routing WHERE id = ?", (id,))
                 conn.commit()
                 conn.close()
                 

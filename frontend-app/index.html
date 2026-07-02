@@ -107,10 +107,7 @@
             btn.style.opacity = "0.7";
             
             await fetch(`${apiBase}/api/delete_all`, { method: 'POST' });
-            await loadData();
-            
-            btn.innerText = "Delete All Records";
-            btn.style.opacity = "1";
+            window.location.reload();
         }
         
         async function genGantt() {
