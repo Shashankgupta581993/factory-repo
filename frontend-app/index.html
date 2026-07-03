@@ -155,12 +155,14 @@
   import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, getIdToken } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   // PASTE YOUR FIREBASE CONFIG HERE:
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "brave-frame-452715-e6.firebaseapp.com",
-    projectId: "brave-frame-452715-e6",
-    // ... rest of config
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "brave-frame-452715-e6.firebaseapp.com",
+  projectId: "brave-frame-452715-e6",
+  storageBucket: "brave-frame-452715-e6.appspot.com",
+  messagingSenderId: "...",
+  appId: "..."
+};
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
