@@ -8,18 +8,18 @@
         nav button { background: none; color: white; border: none; cursor: pointer; padding: 10px 20px; font-weight: bold; border-radius: 4px; }
         nav button:hover { background: #34495e; }
         .view { padding: 20px; display: none; }
-        .active { display: block; }
+        .active { display: flex; flex-direction: column; height: calc(100vh - 80px); }
         
         table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         th { background: #e9ecef; border: 1px solid #ddd; padding: 10px; text-align: left; }
         td { border: 1px solid #ddd; padding: 8px; }
         
-        .gantt-container { border: 1px solid #ccc; height: 500px; overflow-y: auto; background: #fff; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .gantt-row { display: flex; border-bottom: 1px solid #eee; height: 50px; align-items: center; }
-        .res-label { width: 180px; flex-shrink: 0; font-weight: bold; padding-left: 15px; font-size: 14px; color: #333; }
+        .gantt-container { border: 1px solid #ccc; flex-grow: 1; overflow: auto; background: #fff; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: relative; }
+        .gantt-row { display: flex; border-bottom: 1px solid #eee; height: 50px; align-items: center; position: relative; }
+        .res-label { width: 180px; flex-shrink: 0; font-weight: bold; padding-left: 15px; font-size: 14px; color: #333; position: sticky; left: 0; background: #fff; z-index: 10; border-right: 1px solid #ccc; }
         
-        .timeline-area { position: relative; flex-grow: 1; height: 100%; border-left: 2px solid #333; background: #fafafa; }
-        .gantt-block { position: absolute; height: 36px; top: 7px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 1px 1px 3px rgba(0,0,0,0.2); overflow: hidden; white-space: nowrap; }
+        .timeline-area { position: relative; height: 100%; background: #fafafa; }
+        .gantt-block { position: absolute; height: 36px; top: 7px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 1px 1px 3px rgba(0,0,0,0.2); overflow: hidden; white-space: nowrap; cursor: pointer; }
         
         .color-A001 { background: #198754; } 
         .color-A002 { background: #0dcaf0; color: #000; }
@@ -36,7 +36,7 @@
     <p id="error-msg" style="color:red;"></p>
     </div>
     <nav>
-        <button onclick="show('data')">Data Grid</button>
+        <button onclick="show('data')">Orders</button>
         <button onclick="show('gantt')">Gantt Chart</button>
     </nav>
     
@@ -45,16 +45,50 @@
             <input type="file" id="csvFile"> 
             <button id="uploadBtn" onclick="upload()" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Upload CSV</button>
             <button id="deleteAllBtn" onclick="deleteAll()" style="padding: 8px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">Delete All Records</button>
+            <button onclick="deleteSelected()" style="padding: 8px 15px; background: #ffc107; color: black; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">Delete Selected</button>
         </div>
-        <table id="grid">
-            <thead><tr><th>ID</th><th>Order</th><th>Part No</th><th>Part Name</th><th>Op#</th><th>OpName</th><th>Res</th><th>Setup</th><th>ItemTime</th><th>Qty</th><th>Due</th><th>Del</th></tr></thead>
-            <tbody></tbody>
-        </table>
+        <div style="flex-grow: 1; overflow-y: auto;">
+            <table id="grid">
+                <thead><tr>
+                    <th style="width: 30px;"><input type="checkbox" onchange="toggleAll(this)"></th>
+                    <th>Order</th><th>Part No</th><th>Part Name</th><th>Op. No.</th><th>OpName</th><th>Res</th><th>Setup</th><th>ItemTime</th><th>Qty</th><th>Due</th><th>Edit</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div style="text-align: right; margin-top: 10px; padding-bottom: 10px;">
+            Records per page: 
+            <select id="pageSize" onchange="changePageSize()">
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <button onclick="prevPage()">Prev</button>
+            <span id="pageInfo"></span>
+            <button onclick="nextPage()">Next</button>
+        </div>
     </div>
     
     <div id="gantt" class="view">
-        <button onclick="genGantt()" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 10px;">Regenerate Gantt</button>
+        <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+            <button onclick="genGantt()" title="Schedule" style="padding: 5px 10px; font-size: 16px; cursor: pointer;">📅</button>
+            <button onclick="clearGantt()" title="Unschedule" style="padding: 5px 10px; font-size: 16px; cursor: pointer;">❌</button>
+            <button onclick="zoomGantt(1.2)" title="Zoom In" style="padding: 5px 10px; font-size: 16px; cursor: pointer;">🔍+</button>
+            <button onclick="zoomGantt(0.8)" title="Zoom Out" style="padding: 5px 10px; font-size: 16px; cursor: pointer;">🔍-</button>
+        </div>
         <div id="gantt-chart" class="gantt-container"></div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:white; padding:20px; border-radius:5px; width:400px;">
+            <h3>Edit Order</h3>
+            <div id="edit-form-content" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            <div style="margin-top:15px; text-align:right;">
+                <button onclick="closeEditModal()" style="padding: 8px 15px; margin-right: 10px; cursor: pointer;">Cancel</button>
+                <button onclick="closeEditModal()" style="padding: 8px 15px; background:#007bff; color:white; border:none; cursor:pointer;">Save</button>
+            </div>
+        </div>
     </div>
     
     <script>
@@ -64,18 +98,83 @@
             return window.authToken ? { 'Authorization': 'Bearer ' + window.authToken } : {};
         }
 
+        let allData = [];
+        let currentPage = 1;
+        let pageSize = 10;
+        let ganttSchedule = null;
+        let ganttMaxTime = 1;
+        let zoomLevel = 1.0;
+
         function show(v) { 
-            document.querySelectorAll('.view').forEach(d => d.style.display = (d.id==v?'block':'none')); 
+            document.querySelectorAll('.view').forEach(d => {
+                if (d.id == v) { d.style.display = 'flex'; d.classList.add('active'); }
+                else { d.style.display = 'none'; d.classList.remove('active'); }
+            }); 
             if(v === 'data') loadData(); 
         }
         
         async function loadData() {
             let res = await fetch(`${apiBase}/api/data`, { cache: 'no-store', headers: getAuthHeaders() }); 
-            let data = await res.json();
-            document.querySelector('#grid tbody').innerHTML = data.map(r => 
-                `<tr>${r.map(c=>`<td>${c}</td>`).join('')}<td><button onclick="del(${r[0]})" style="background:#dc3545; color:white; border:none; cursor:pointer;">X</button></td></tr>`
-            ).join('');
+            allData = await res.json();
+            renderTable();
         }
+
+        function renderTable() {
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageData = allData.slice(start, end);
+            
+            document.querySelector('#grid tbody').innerHTML = pageData.map(r => 
+                `<tr>
+                    <td><input type="checkbox" class="row-chk" value="${r[0]}"></td>
+                    <td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td>
+                    <td>${r[6]}</td><td>${r[7]}</td><td>${r[8]}</td><td>${r[9]}</td><td>${r[10]}</td>
+                    <td><button onclick="openEditModal(${r[0]})" style="background:#007bff; color:white; border:none; cursor:pointer; padding:5px 10px; border-radius:3px;">Edit</button></td>
+                </tr>`
+            ).join('');
+            document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${Math.ceil(allData.length/pageSize) || 1}`;
+        }
+
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            currentPage = 1;
+            renderTable();
+        }
+
+        function prevPage() { if (currentPage > 1) { currentPage--; renderTable(); } }
+        function nextPage() { if (currentPage < Math.ceil(allData.length/pageSize)) { currentPage++; renderTable(); } }
+
+        function toggleAll(el) { document.querySelectorAll('.row-chk').forEach(c => c.checked = el.checked); }
+
+        async function deleteSelected() {
+            const chks = document.querySelectorAll('.row-chk:checked');
+            if(chks.length === 0) return;
+            if(!confirm("Delete selected records?")) return;
+            for(let chk of chks) {
+                await fetch(`${apiBase}/api/delete?id=${chk.value}`, {method: 'POST', headers: getAuthHeaders()});
+            }
+            await loadData();
+        }
+
+        function openEditModal(id) {
+            const record = allData.find(r => r[0] == id);
+            if(!record) return;
+            const labels = ["Order", "Part No", "Part Name", "Op. No.", "OpName", "Res", "Setup", "ItemTime", "Qty", "Due"];
+            document.getElementById('edit-form-content').innerHTML = labels.map((l, i) => 
+                `<div style="display:flex; justify-content:space-between;">
+                    <label style="font-weight:bold;">${l}</label>
+                    <input type="text" value="${record[i+1]}" style="width:200px; padding:4px;">
+                </div>`
+            ).join('');
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function openEditModalFromGantt(orderNo) {
+            const record = allData.find(r => r[1] == orderNo);
+            if(record) openEditModal(record[0]);
+        }
+
+        function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
         
         async function upload() {
             const fileInput = document.getElementById('csvFile');
@@ -125,6 +224,16 @@
             window.location.reload();
         }
         
+        function clearGantt() {
+            ganttSchedule = null;
+            document.getElementById('gantt-chart').innerHTML = "";
+        }
+
+        function zoomGantt(factor) {
+            zoomLevel *= factor;
+            renderGantt();
+        }
+
         async function genGantt() {
             let res = await fetch(`${apiBase}/api/schedule`, { cache: 'no-store', headers: getAuthHeaders() });
             let data = await res.json();
@@ -133,15 +242,31 @@
                 document.getElementById('gantt-chart').innerHTML = "<div style='padding:20px;'>No schedule data available. Upload data first.</div>";
                 return;
             }
+            ganttSchedule = data.schedule;
+            ganttMaxTime = data.max;
+            zoomLevel = 1.0;
+            renderGantt();
+        }
+        
+        function renderGantt() {
+            if (!ganttSchedule) return;
+            const resources = [...new Set(ganttSchedule.map(s => s.resource))];
             
-            const resources = [...new Set(data.schedule.map(s => s.resource))];
+            const totalWidth = Math.max(100, ganttMaxTime * zoomLevel);
             
-            document.getElementById('gantt-chart').innerHTML = resources.map(res => 
-                `<div class="gantt-row">
+            let timelineHtml = `<div style="display:flex; border-bottom:1px solid #ccc; height:25px; position:sticky; top:0; background:#eee; z-index:5; width:${totalWidth}%; min-width:100%; margin-left: 180px;">`;
+            const ticks = 10;
+            for(let i=0; i<=ticks; i++) {
+                timelineHtml += `<div style="position:absolute; left:${(i/ticks)*100}%; border-left:1px solid #999; padding-left:2px; font-size:10px;">${Math.round(ganttMaxTime*(i/ticks))}m</div>`;
+            }
+            timelineHtml += `</div>`;
+            
+            document.getElementById('gantt-chart').innerHTML = timelineHtml + resources.map(res => 
+                `<div class="gantt-row" style="width:${totalWidth}%; min-width:100%;">
                     <div class="res-label">${res}</div>
-                    <div class="timeline-area">
-                        ${data.schedule.filter(s => s.resource == res).map(s => 
-                        `<div class="gantt-block color-${s.order}" style="left:${(s.start_min/data.max)*100}%; width:${(s.dur/data.max)*100}%" title="${s.order} | Start: ${s.start_min}m | Dur: ${s.dur}m">${s.order}</div>`
+                    <div class="timeline-area" style="width:100%;">
+                        ${ganttSchedule.filter(s => s.resource == res).map(s => 
+                        `<div class="gantt-block color-${s.order}" style="left:${(s.start_min/ganttMaxTime)*100}%; width:${(s.dur/ganttMaxTime)*100}%" title="${s.order} | Start: ${s.start_min}m | Dur: ${s.dur}m" ondblclick="openEditModalFromGantt('${s.order}')"></div>`
                         ).join('')}
                     </div>
                 </div>`
