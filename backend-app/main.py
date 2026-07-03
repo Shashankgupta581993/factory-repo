@@ -2,6 +2,13 @@ import sqlite3, json, csv, io, re, subprocess
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
+import firebase_admin
+from firebase_admin import auth
+
+try:
+    firebase_admin.initialize_app()
+except ValueError:
+    pass # App already initialized
 
 # --- DATABASE LOGIC ---
 def init_db():
@@ -17,6 +24,18 @@ def parse_time_to_mins(time_str):
 
 # --- PURE API SERVER ---
 class AppServer(BaseHTTPRequestHandler):
+    def check_auth(self):
+        auth_header = self.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return False
+        token = auth_header.split('Bearer ')[1]
+        try:
+            auth.verify_id_token(token)
+            return True
+        except Exception as e:
+            print(f"Auth error: {e}")
+            return False
+
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -28,6 +47,12 @@ class AppServer(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path.startswith('/api/') and not self.check_auth():
+            self.send_response(401)
+            self.end_headers()
+            self.wfile.write(b"Unauthorized")
+            return
+
         if '/api/data' in self.path:
             conn = sqlite3.connect('factory.db')
             rows = conn.execute("SELECT * FROM routing").fetchall()
@@ -129,6 +154,12 @@ class AppServer(BaseHTTPRequestHandler):
                 self.send_error(404, "Not Found")
 
     def do_POST(self):
+        if self.path.startswith('/api/') and not self.check_auth():
+            self.send_response(401)
+            self.end_headers()
+            self.wfile.write(b"Unauthorized")
+            return
+
         try:
             if '/api/upload' in self.path:
                 content_length = int(self.headers.get('Content-Length', 0))

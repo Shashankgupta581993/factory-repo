@@ -1,16 +1,27 @@
 steps:
-# Step A: Update the VM Backend via IAP
+# Step A1: Offline Packaging
+- name: 'python:3.10'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    cd backend-app
+    pip install -t vendor -r requirements.txt
+    apt-get update && apt-get install -y zip
+    zip -r backend_payload.zip main.py vendor/
+
+# Step A2: Update the VM Backend via IAP
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: 'bash'
   args:
   - '-c'
   - |
-    echo "Pushing backend to Cloud Storage..."
-    gcloud storage cp backend-app/main.py gs://zero-cost-bucket-shashank-581993/main.py
+    echo "Pushing backend payload to Cloud Storage..."
+    gcloud storage cp backend-app/backend_payload.zip gs://zero-cost-bucket-shashank-581993/backend_payload.zip
     
     echo "Restarting Air-Gapped VM..."
     # The --quiet, setsid, and < /dev/null are strictly required so the SSH session can close instantly!
-    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/main.py . && sudo fuser -k -9 8000/tcp || true && setsid python3 main.py > app.log 2>&1 < /dev/null &"
+    gcloud compute ssh zero-cost-learning-vm --zone=us-central1-a --tunnel-through-iap --quiet --command="gcloud storage cp gs://zero-cost-bucket-shashank-581993/backend_payload.zip . && unzip -o backend_payload.zip && sudo fuser -k -9 8000/tcp || true && PYTHONPATH=./vendor setsid python3 main.py > app.log 2>&1 < /dev/null &"
 
 # Step B: Deploy the Frontend to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

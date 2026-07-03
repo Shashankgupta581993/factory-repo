@@ -28,6 +28,13 @@
     </style>
 </head>
 <body>
+    <div id="login-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+    <h2>Factory Dashboard Login</h2>
+    <input type="email" id="email" placeholder="Email" style="margin:5px; padding:8px;">
+    <input type="password" id="password" placeholder="Password" style="margin:5px; padding:8px;">
+    <button onclick="login()" style="margin:10px; padding:10px 20px;">Login</button>
+    <p id="error-msg" style="color:red;"></p>
+    </div>
     <nav>
         <button onclick="show('data')">Data Grid</button>
         <button onclick="show('gantt')">Gantt Chart</button>
@@ -51,7 +58,11 @@
     </div>
     
     <script>
-        const apiBase = window.location.port === '5500' ? 'http://localhost:8000' : '';
+        const apiBase = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : '';
+        
+        function getAuthHeaders() {
+            return window.authToken ? { 'Authorization': 'Bearer ' + window.authToken } : {};
+        }
 
         function show(v) { 
             document.querySelectorAll('.view').forEach(d => d.style.display = (d.id==v?'block':'none')); 
@@ -59,7 +70,7 @@
         }
         
         async function loadData() {
-            let res = await fetch(`${apiBase}/api/data`, { cache: 'no-store' }); 
+            let res = await fetch(`${apiBase}/api/data`, { cache: 'no-store', headers: getAuthHeaders() }); 
             let data = await res.json();
             document.querySelector('#grid tbody').innerHTML = data.map(r => 
                 `<tr>${r.map(c=>`<td>${c}</td>`).join('')}<td><button onclick="del(${r[0]})" style="background:#dc3545; color:white; border:none; cursor:pointer;">X</button></td></tr>`
@@ -79,7 +90,11 @@
             formData.append('file', fileInput.files[0]);
             
             try {
-                const res = await fetch(`${apiBase}/api/upload`, {method: 'POST', body: formData}); 
+                const res = await fetch(`${apiBase}/api/upload`, {
+                    method: 'POST', 
+                    body: formData,
+                    headers: getAuthHeaders()
+                }); 
                 if (!res.ok) {
                     throw new Error(`Upload failed with status: ${res.status}`);
                 }
@@ -94,7 +109,7 @@
         }
         
         async function del(id) { 
-            await fetch(`${apiBase}/api/delete?id=`+id, {method: 'POST'}); 
+            await fetch(`${apiBase}/api/delete?id=`+id, {method: 'POST', headers: getAuthHeaders()}); 
             await loadData(); 
         }
         
@@ -106,12 +121,12 @@
             btn.innerText = "Clearing...";
             btn.style.opacity = "0.7";
             
-            await fetch(`${apiBase}/api/delete_all`, { method: 'POST' });
+            await fetch(`${apiBase}/api/delete_all`, { method: 'POST', headers: getAuthHeaders() });
             window.location.reload();
         }
         
         async function genGantt() {
-            let res = await fetch(`${apiBase}/api/schedule`, { cache: 'no-store' });
+            let res = await fetch(`${apiBase}/api/schedule`, { cache: 'no-store', headers: getAuthHeaders() });
             let data = await res.json();
             
             if (!data.schedule || data.schedule.length === 0) {
@@ -135,5 +150,44 @@
         
         loadData();
     </script>
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, getIdToken } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+  // PASTE YOUR FIREBASE CONFIG HERE:
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "brave-frame-452715-e6.firebaseapp.com",
+    projectId: "brave-frame-452715-e6",
+    // ... rest of config
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  window.authToken = null; // Store token globally for API calls
+
+  // Listen for login state changes
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        document.getElementById('login-screen').style.display = 'none';
+        window.authToken = await getIdToken(user);
+        // Trigger your existing dashboard load functions here
+        // loadDashboardData(); 
+    } else {
+        document.getElementById('login-screen').style.display = 'flex';
+        window.authToken = null;
+    }
+  });
+
+  // Login function attached to the button
+  window.login = () => {
+    const email = document.getElementById('email').value;
+    const pass = document.getElementById('password').value;
+    signInWithEmailAndPassword(auth, email, pass)
+      .catch((error) => {
+        document.getElementById('error-msg').innerText = "Login failed. Check credentials.";
+      });
+  };
+</script>
 </body>
 </html>
